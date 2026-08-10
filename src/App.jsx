@@ -64,6 +64,21 @@ const RANGE_OPTIONS = [
   { key: "month", label: "Pilih Bulan" },
 ];
 
+const MONTH_NAMES_ID = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+function buildRecentMonths(count = 12) {
+  const out = [];
+  const now = new Date();
+  for (let i = 0; i < count; i++) {
+    const y = now.getFullYear();
+    const m = now.getMonth() - i;
+    const d = new Date(y, m, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    out.push({ value, label: `${MONTH_NAMES_ID[d.getMonth()]} ${d.getFullYear()}` });
+  }
+  return out;
+}
+const RECENT_MONTHS = buildRecentMonths(12);
+
 const STATUS_META = {
   READY_TO_SHIP: { label: "Perlu Dikirim", icon: PackageCheck, color: "#f59e0b" },
   SHIPPED: { label: "Sedang Dikirim", icon: Truck, color: "#6366f1" },
@@ -140,7 +155,8 @@ export default function SellerDashboard() {
   const [now, setNow] = useState(new Date());
   const [isLive, setIsLive] = useState(true);
   const [range, setRange] = useState(RANGE_OPTIONS[1]); // default: 7 Hari Terakhir
-  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7)); // "YYYY-MM"
+  const [selectedMonth, setSelectedMonth] = useState(RECENT_MONTHS[0].value); // "YYYY-MM"
+  const [monthOpen, setMonthOpen] = useState(false);
   const [rangeOpen, setRangeOpen] = useState(false);
   const [activeMenu, setActiveMenu] = useState("Overview");
 
@@ -395,13 +411,29 @@ export default function SellerDashboard() {
               </div>
 
               {range.key === "month" && (
-                <input
-                  type="month"
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200"
-                  style={{ colorScheme: "dark" }}
-                />
+                <div className="relative">
+                  <button
+                    onClick={() => setMonthOpen((o) => !o)}
+                    className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200"
+                  >
+                    {RECENT_MONTHS.find((m) => m.value === selectedMonth)?.label || selectedMonth}
+                    <ChevronDown size={14} className="text-slate-500" />
+                  </button>
+                  {monthOpen && (
+                    <div className="absolute right-0 mt-1 w-44 max-h-64 overflow-y-auto bg-slate-900 border border-slate-800 rounded-lg overflow-hidden z-10 shadow-lg">
+                      {RECENT_MONTHS.map((m) => (
+                        <button
+                          key={m.value}
+                          onClick={() => { setSelectedMonth(m.value); setMonthOpen(false); }}
+                          className={"w-full text-left px-3 py-2 text-sm hover:bg-slate-800 " +
+                            (m.value === selectedMonth ? "text-violet-300" : "text-slate-300")}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
 
               <button
