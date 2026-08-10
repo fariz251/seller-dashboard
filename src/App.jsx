@@ -15,8 +15,8 @@ import {
 // KONFIGURASI — ganti dua nilai ini dengan punya kamu sebelum dipakai.
 // Ambil dari Supabase: Project Settings → API
 // ====================================================================
-const SUPABASE_URL = "https://YOUR-PROJECT-REF.supabase.co";
-const SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";
+const SUPABASE_URL = "https://eoyutigjebnubxnsgatq.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVveXV0aWdqZWJudWJ4bnNnYXRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxNTU3NjUsImV4cCI6MjEwMTczMTc2NX0.lxCJjbi8tAg65ybnSPwWUD8v7y94aIoIMdcDX0RHqXU";
 
 const IS_CONFIGURED =
   !SUPABASE_URL.includes("YOUR-PROJECT-REF") && !SUPABASE_ANON_KEY.includes("YOUR-ANON-PUBLIC-KEY");
