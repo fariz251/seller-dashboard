@@ -12,11 +12,11 @@ import {
 } from "lucide-react";
 
 // ====================================================================
-// KONFIGURASI — diambil dari environment variable Vercel/Vite.
-// Set VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY di Vercel Project Settings → Environment Variables
+// KONFIGURASI — ganti dua nilai ini dengan punya kamu sebelum dipakai.
+// Ambil dari Supabase: Project Settings → API
 // ====================================================================
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://YOUR-PROJECT-REF.supabase.co";
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "YOUR-ANON-PUBLIC-KEY";
+const SUPABASE_URL = "https://YOUR-PROJECT-REF.supabase.co";
+const SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";
 
 const IS_CONFIGURED =
   !SUPABASE_URL.includes("YOUR-PROJECT-REF") && !SUPABASE_ANON_KEY.includes("YOUR-ANON-PUBLIC-KEY");
@@ -59,10 +59,9 @@ const ESTIMATED_TRAFFIC_PER_ORDER = 35; // asumsi kasar, ganti kalau sudah ada d
 const ADS_SPEND_PCT_OF_GMV = 0.08; // asumsi kasar, ganti kalau sudah integrasi Shopee Ads API
 
 const RANGE_OPTIONS = [
-  { key: "today", label: "Hari Ini", days: 1 },
-  { key: "7d", label: "7 Hari Terakhir", days: 7 },
-  { key: "30d", label: "30 Hari Terakhir", days: 30 },
-  { key: "month", label: "Bulan Ini", days: 30 },
+  { key: "today", label: "Hari Ini" },
+  { key: "7d", label: "7 Hari Terakhir" },
+  { key: "month", label: "Pilih Bulan" },
 ];
 
 const STATUS_META = {
@@ -140,7 +139,8 @@ function SidebarItem({ icon: Icon, label, active, onClick }) {
 export default function SellerDashboard() {
   const [now, setNow] = useState(new Date());
   const [isLive, setIsLive] = useState(true);
-  const [range, setRange] = useState(RANGE_OPTIONS[2]);
+  const [range, setRange] = useState(RANGE_OPTIONS[1]); // default: 7 Hari Terakhir
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7)); // "YYYY-MM"
   const [rangeOpen, setRangeOpen] = useState(false);
   const [activeMenu, setActiveMenu] = useState("Overview");
 
@@ -156,12 +156,24 @@ export default function SellerDashboard() {
     return () => clearInterval(t);
   }, []);
 
-  const sinceISO = useMemo(() => {
-    const days = range.key === "today" ? 1 : range.days;
-    const d = new Date();
-    d.setDate(d.getDate() - days);
-    return d.toISOString();
-  }, [range]);
+  const { sinceISO, untilISO } = useMemo(() => {
+    const now = new Date();
+    if (range.key === "today") {
+      const start = new Date(now);
+      start.setHours(0, 0, 0, 0);
+      return { sinceISO: start.toISOString(), untilISO: null };
+    }
+    if (range.key === "7d") {
+      const start = new Date(now);
+      start.setDate(start.getDate() - 7);
+      return { sinceISO: start.toISOString(), untilISO: null };
+    }
+    // month picker
+    const [y, m] = selectedMonth.split("-").map(Number);
+    const start = new Date(Date.UTC(y, m - 1, 1));
+    const end = new Date(Date.UTC(y, m, 1));
+    return { sinceISO: start.toISOString(), untilISO: end.toISOString() };
+  }, [range, selectedMonth]);
 
   const loadData = useCallback(async () => {
     if (!IS_CONFIGURED) {
@@ -170,8 +182,9 @@ export default function SellerDashboard() {
     }
     try {
       setError(null);
+      const untilParam = untilISO ? `&create_time=lt.${untilISO}` : "";
       const [ordersRes, itemsRes, feedRes] = await Promise.all([
-        pgFetch(`orders?select=order_sn,status,total_amount,create_time,buyer_username&create_time=gte.${sinceISO}&order=create_time.desc&limit=2000`),
+        pgFetch(`orders?select=order_sn,status,total_amount,create_time,buyer_username&create_time=gte.${sinceISO}${untilParam}&order=create_time.desc&limit=2000`),
         pgFetch(`order_items?select=order_sn,item_name,sku,qty,subtotal,orders(create_time,status)&limit=3000&order=order_sn.desc`),
         pgFetch(`orders?select=order_sn,buyer_username,total_amount,create_time,order_items(item_name,qty)&status=eq.READY_TO_SHIP&order=create_time.desc&limit=8`),
       ]);
@@ -183,7 +196,7 @@ export default function SellerDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [sinceISO]);
+  }, [sinceISO, untilISO]);
 
   useEffect(() => {
     loadData();
@@ -221,7 +234,8 @@ export default function SellerDashboard() {
   const bestSellers = useMemo(() => {
     const map = {};
     for (const it of orderItems) {
-      const inRange = it.orders && it.orders.create_time >= sinceISO;
+      const t = it.orders && it.orders.create_time;
+      const inRange = t && t >= sinceISO && (!untilISO || t < untilISO);
       if (!inRange) continue;
       const key = it.sku || it.item_name;
       if (!map[key]) map[key] = { sku: it.sku || "-", name: it.item_name, qty: 0, revenue: 0 };
@@ -229,7 +243,7 @@ export default function SellerDashboard() {
       map[key].revenue += Number(it.subtotal) || 0;
     }
     return Object.values(map).sort((a, b) => b.revenue - a.revenue).slice(0, 6);
-  }, [orderItems, sinceISO]);
+  }, [orderItems, sinceISO, untilISO]);
 
   const statusBreakdown = useMemo(() => {
     const map = {};
@@ -379,6 +393,16 @@ export default function SellerDashboard() {
                   </div>
                 )}
               </div>
+
+              {range.key === "month" && (
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200"
+                  style={{ colorScheme: "dark" }}
+                />
+              )}
 
               <button
                 onClick={() => setIsLive((v) => !v)}
